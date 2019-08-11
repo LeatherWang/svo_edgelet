@@ -30,105 +30,105 @@ void saveMatToCsv(cv::Mat data, std::string filename)
 }
 
 AbstractDetector::AbstractDetector(
-    const int img_width,
-    const int img_height,
-    const int cell_size,
-    const int n_pyr_levels) :
-        cell_size_(cell_size),
-        n_pyr_levels_(n_pyr_levels),
-        grid_n_cols_(ceil(static_cast<double>(img_width)/cell_size_)),
-        grid_n_rows_(ceil(static_cast<double>(img_height)/cell_size_)),
-        grid_occupancy_(grid_n_cols_*grid_n_rows_, false)
+        const int img_width,
+        const int img_height,
+        const int cell_size,
+        const int n_pyr_levels) :
+    cell_size_(cell_size),
+    n_pyr_levels_(n_pyr_levels),
+    grid_n_cols_(ceil(static_cast<double>(img_width)/cell_size_)),
+    grid_n_rows_(ceil(static_cast<double>(img_height)/cell_size_)),
+    grid_occupancy_(grid_n_cols_*grid_n_rows_, false)
 {}
 
 void AbstractDetector::resetGrid()
 {
-  std::fill(grid_occupancy_.begin(), grid_occupancy_.end(), false);
+    std::fill(grid_occupancy_.begin(), grid_occupancy_.end(), false);
 }
 
 void AbstractDetector::setExistingFeatures(const Features& fts)
 {
-  std::for_each(fts.begin(), fts.end(), [&](Feature* i){
-    grid_occupancy_.at(
-        static_cast<int>(i->px[1]/cell_size_)*grid_n_cols_
-        + static_cast<int>(i->px[0]/cell_size_)) = true;
-  });
+    std::for_each(fts.begin(), fts.end(), [&](Feature* i){
+        grid_occupancy_.at(
+                    static_cast<int>(i->px[1]/cell_size_)*grid_n_cols_
+                + static_cast<int>(i->px[0]/cell_size_)) = true;
+    });
 }
 
 void AbstractDetector::setGridOccpuancy(const Vector2d& px)
 {
-  grid_occupancy_.at(
-      static_cast<int>(px[1]/cell_size_)*grid_n_cols_
-    + static_cast<int>(px[0]/cell_size_)) = true;
+    grid_occupancy_.at(
+                static_cast<int>(px[1]/cell_size_)*grid_n_cols_
+            + static_cast<int>(px[0]/cell_size_)) = true;
 }
 
 FastDetector::FastDetector(
-    const int img_width,
-    const int img_height,
-    const int cell_size,
-    const int n_pyr_levels) :
-        AbstractDetector(img_width, img_height, cell_size, n_pyr_levels)
+        const int img_width,
+        const int img_height,
+        const int cell_size,
+        const int n_pyr_levels) :
+    AbstractDetector(img_width, img_height, cell_size, n_pyr_levels)
 {}
 
 void FastDetector::detect(
-    Frame* frame,
-    const ImgPyr& img_pyr,
-    const double detection_threshold,
-    Features& fts)
+        Frame* frame,
+        const ImgPyr& img_pyr,
+        const double detection_threshold,
+        Features& fts)
 {
-  Corners corners(grid_n_cols_*grid_n_rows_, Corner(0,0,detection_threshold,0,0.0f));
-  //Corners corners(grid_n_cols_*grid_n_rows_, Corner(0,0,0,0,0.0f));
-  for(int L=0; L<n_pyr_levels_; ++L)
-  {
-    const int scale = (1<<L);
-    vector<fast::fast_xy> fast_corners;
-#if __SSE2__
-      fast::fast_corner_detect_10_sse2(
-          (fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols,
-          img_pyr[L].rows, img_pyr[L].cols, 8, fast_corners);   // 20
-#elif HAVE_FAST_NEON
-      fast::fast_corner_detect_9_neon(
-          (fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols,
-          img_pyr[L].rows, img_pyr[L].cols, 8, fast_corners);
-#else
-      fast::fast_corner_detect_10(
-          (fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols,
-          img_pyr[L].rows, img_pyr[L].cols, 8, fast_corners);
-#endif
-    vector<int> scores, nm_corners;
-    fast::fast_corner_score_10((fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols, fast_corners,8, scores);// 20
-    fast::fast_nonmax_3x3(fast_corners, scores, nm_corners);
-
-    for(auto it=nm_corners.begin(), ite=nm_corners.end(); it!=ite; ++it)
+    Corners corners(grid_n_cols_*grid_n_rows_, Corner(0,0,detection_threshold,0,0.0f));
+    //Corners corners(grid_n_cols_*grid_n_rows_, Corner(0,0,0,0,0.0f));
+    for(int L=0; L<n_pyr_levels_; ++L)
     {
-      fast::fast_xy& xy = fast_corners.at(*it);
-      const int k = static_cast<int>((xy.y*scale)/cell_size_)*grid_n_cols_
-                  + static_cast<int>((xy.x*scale)/cell_size_);
-      if(grid_occupancy_[k])
-        continue;
-      const float score = fast::shiTomasiScore(img_pyr[L], xy.x, xy.y);
-      if(score > corners.at(k).score)
-        corners.at(k) = Corner(xy.x*scale, xy.y*scale, score, L, 0.0f);
+        const int scale = (1<<L);
+        vector<fast::fast_xy> fast_corners;
+#if __SSE2__
+        fast::fast_corner_detect_10_sse2(
+                    (fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols,
+                    img_pyr[L].rows, img_pyr[L].cols, 8, fast_corners);   // 20
+#elif HAVE_FAST_NEON
+        fast::fast_corner_detect_9_neon(
+                    (fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols,
+                    img_pyr[L].rows, img_pyr[L].cols, 8, fast_corners);
+#else
+        fast::fast_corner_detect_10(
+                    (fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols,
+                    img_pyr[L].rows, img_pyr[L].cols, 8, fast_corners);
+#endif
+        vector<int> scores, nm_corners;
+        fast::fast_corner_score_10((fast::fast_byte*) img_pyr[L].data, img_pyr[L].cols, fast_corners,8, scores);// 20
+        fast::fast_nonmax_3x3(fast_corners, scores, nm_corners);
+
+        for(auto it=nm_corners.begin(), ite=nm_corners.end(); it!=ite; ++it)
+        {
+            fast::fast_xy& xy = fast_corners.at(*it);
+            const int k = static_cast<int>((xy.y*scale)/cell_size_)*grid_n_cols_
+                    + static_cast<int>((xy.x*scale)/cell_size_);
+            if(grid_occupancy_[k])
+                continue;
+            const float score = fast::shiTomasiScore(img_pyr[L], xy.x, xy.y);
+            if(score > corners.at(k).score)
+                corners.at(k) = Corner(xy.x*scale, xy.y*scale, score, L, 0.0f);
+        }
     }
-  }
 
-  int debug=0;
-  // Create feature for every corner that has high enough corner score
-  std::for_each(corners.begin(), corners.end(), [&](Corner& c) {
-    if(c.score > detection_threshold)
-      fts.push_back(new Feature(frame, Vector2d(c.x, c.y), c.level));
-  });
+    int debug=0;
+    // Create feature for every corner that has high enough corner score
+    std::for_each(corners.begin(), corners.end(), [&](Corner& c) {
+        if(c.score > detection_threshold)
+            fts.push_back(new Feature(frame, Vector2d(c.x, c.y), c.level));
+    });
 
-  resetGrid();
+    resetGrid();
 }
 
 
 EdgeDetector::EdgeDetector(
-    const int img_width,
-    const int img_height,
-    const int cell_size,
-    const int n_pyr_levels) :
-        AbstractDetector(img_width, img_height, cell_size, n_pyr_levels)
+        const int img_width,
+        const int img_height,
+        const int cell_size,
+        const int n_pyr_levels) :
+    AbstractDetector(img_width, img_height, cell_size, n_pyr_levels)
 {}
 
 class Pt
@@ -437,130 +437,128 @@ void EdgeDetector::detect(
 
 #define EDGE
 void EdgeDetector::detect(
-    Frame* frame,
-    const ImgPyr& img_pyr,
-    const double detection_threshold,
-    Features& fts)
+        Frame* frame,
+        const ImgPyr& img_pyr,
+        const double detection_threshold,
+        Features& fts)
 {
 #ifdef EDGE
-  setExistingFeatures(fts);  // corners
+    setExistingFeatures(fts);  // corners
 
-  cv::Mat img = img_pyr[0].clone();
-  cv::Mat gradx = cv::Mat::zeros( img_pyr[0].rows, img_pyr[0].cols, CV_32F);
-  cv::Mat grady = cv::Mat::zeros(img_pyr[0].rows, img_pyr[0].cols, CV_32F);
-  cv::Mat mag =  cv::Mat::zeros(img_pyr[0].rows, img_pyr[0].cols, CV_32F);
+    cv::Mat img = img_pyr[0].clone();
+    cv::Mat gradx = cv::Mat::zeros( img_pyr[0].rows, img_pyr[0].cols, CV_32F);
+    cv::Mat grady = cv::Mat::zeros(img_pyr[0].rows, img_pyr[0].cols, CV_32F);
+    cv::Mat mag =  cv::Mat::zeros(img_pyr[0].rows, img_pyr[0].cols, CV_32F);
 
-  cv::GaussianBlur( img_pyr[0], img, cv::Size( 3, 3 ), 0, 0 );
-  cv::Scharr(img, gradx, CV_32F, 1, 0, 1/32.0);
-  cv::Scharr(img, grady, CV_32F, 0, 1, 1/32.0);
-  cv::magnitude(gradx,grady,mag);
+    cv::GaussianBlur( img_pyr[0], img, cv::Size( 3, 3 ), 0, 0 );
+    cv::Scharr(img, gradx, CV_32F, 1, 0, 1/32.0); //提取Scharr边缘
+    cv::Scharr(img, grady, CV_32F, 0, 1, 1/32.0);
+    cv::magnitude(gradx,grady,mag);
 
-  vector< Pt > maxgrad_list;
-  vector < Edgelete > edge_list;
+    vector< Pt > maxgrad_list;
+    vector < Edgelete > edge_list;
 
-  for(size_t k = 0; k<grid_occupancy_.size(); k++)
-  {
-
-    // if  no fast corner at the cell, we will detect the edge feature or max grad point
-    if(grid_occupancy_[k])
+    for(size_t k = 0; k<grid_occupancy_.size(); k++)
     {
-      continue;
-    }
-
-    int n = std::floor(k/grid_n_cols_);
-    // discard the cell at the boundary
-    if( n == 0 || n == (grid_n_rows_-1)  || (k%grid_n_cols_) == 0 || ((k+1)%grid_n_cols_ == 0 ))
-      continue;
-
-    // calculate the start pixel coordinate  of  k'th cell
-    int x_start = (k - n*grid_n_cols_)* cell_size_;
-    int y_start = n*cell_size_;
-
-    float max_grad = 0;
-    int maxgrad_x = 0;
-    int maxgrad_y = 0;
-    float gx = 0;
-    float gy = 0;
-
-     cv::Mat canny;
-     cv::Rect roi(x_start,y_start,cell_size_,cell_size_);
-     cv::Canny(img(roi) , canny , 30,50);
-
-    float max_grad_2 = 0;
-    int maxgrad_x2 = 0;
-    int maxgrad_y2 = 0;
-
-    for (int i=0;i<cell_size_;i++ )
-      for(int j=0;j<cell_size_;j++)
-    {
-
-        float temp = mag.ptr<float>(y_start + i)[x_start+j] ;
-        if( temp> max_grad_2 )
+        // if  no fast corner at the cell, we will detect the edge feature or max grad point
+        // 如果栅格内没有角点，则检测边缘点
+        if(grid_occupancy_[k])
         {
-          maxgrad_x2 = x_start+j;
-          maxgrad_y2 = y_start + i;
-          max_grad_2 = temp;
+            continue;
         }
 
-            if(canny.ptr<uchar>(i)[j] == 0) continue;
-            if( temp> max_grad )
+        int n = std::floor(k/grid_n_cols_);
+        // discard the cell at the boundary
+        /** @attention 这里去除边界，值得借鉴*/
+        if( n == 0 || n == (grid_n_rows_-1)  || (k%grid_n_cols_) == 0 || ((k+1)%grid_n_cols_ == 0 ))
+            continue;
+
+        // calculate the start pixel coordinate  of  k'th cell
+        int x_start = (k - n*grid_n_cols_)* cell_size_;
+        int y_start = n*cell_size_;
+
+        float max_grad = 0;
+        int maxgrad_x = 0;
+        int maxgrad_y = 0;
+        float gx = 0;
+        float gy = 0;
+
+        // canny边缘检测
+        cv::Mat canny;
+        cv::Rect roi(x_start,y_start,cell_size_,cell_size_); //! @attention 感兴趣区域
+        cv::Canny(img(roi) , canny , 30,50);
+
+        float max_grad_2 = 0;
+        int maxgrad_x2 = 0;
+        int maxgrad_y2 = 0;
+
+        for (int i=0;i<cell_size_;i++ )
+            for(int j=0;j<cell_size_;j++)
             {
-              maxgrad_x = x_start+j;
-              maxgrad_y = y_start + i;
-              max_grad = temp;
-              gx = gradx.ptr<float>(maxgrad_y)[maxgrad_x] ;
-              gy = grady.ptr<float>(maxgrad_y)[maxgrad_x] ;
+                float temp = mag.ptr<float>(y_start + i)[x_start+j] ; //Scharrxy方向梯度向量的欧式距离
+                if( temp> max_grad_2 )
+                {
+                    maxgrad_x2 = x_start+j;
+                    maxgrad_y2 = y_start + i;
+                    max_grad_2 = temp;
+                }
+
+                if(canny.ptr<uchar>(i)[j] == 0) continue; //
+
+                if( temp> max_grad )
+                {
+                    maxgrad_x = x_start+j;
+                    maxgrad_y = y_start + i;
+                    max_grad = temp;
+                    gx = gradx.ptr<float>(maxgrad_y)[maxgrad_x] ; //Scharr一阶梯度
+                    gy = grady.ptr<float>(maxgrad_y)[maxgrad_x] ;
+                }
             }
+
+        int edge_threshold = 4;
+        {
+            Vector2d g = Vector2d(gx,gy);
+            g.normalize();
+
+            // canny和Scharr都认为是边缘话，就算一个Edgelete
+            if( max_grad > edge_threshold)
+            {
+                Edgelete e(max_grad,Vector2d(maxgrad_x, maxgrad_y),g); //! @attention 最有一个参数是梯度向量
+                edge_list.push_back(e);
+                //fts.push_back(new Feature(frame, Vector2d(maxgrad_x, maxgrad_y),g, 0));   // edge
+            }
+            else if( max_grad_2 >0.0)
+            {
+                Pt p(max_grad_2,Vector2d(maxgrad_x2,maxgrad_y2));
+                maxgrad_list.push_back(p);
+                //     fts.push_back(new Feature(frame, Vector2d(maxgrad_x2,maxgrad_y2), 0));
+            }
+        }
+
     }
 
-    int edge_threshold = 4;
+    int num_feature = 240;
+    int n = num_feature - fts.size();
+    if( n > 0)
     {
+        sort(edge_list.begin(), edge_list.end()); //按照梯度大小排序
+        int a = (n>edge_list.size())? edge_list.size():n; //取较小值
+        for( int i = 0; i< a; i++)
+            fts.push_back(new Feature(frame, edge_list[i].xy, edge_list[i].dir, 0));   // edge
 
-          Vector2d g = Vector2d(gx,gy);
-          g.normalize();
-
-          if( max_grad > edge_threshold)
-         {
-            Edgelete e(max_grad,Vector2d(maxgrad_x, maxgrad_y),g);
-            edge_list.push_back(e);
-            //fts.push_back(new Feature(frame, Vector2d(maxgrad_x, maxgrad_y),g, 0));   // edge
-          }
-          else if( max_grad_2 >0.0)
-          {
-              Pt p(max_grad_2,Vector2d(maxgrad_x2,maxgrad_y2));
-              maxgrad_list.push_back(p);
-        //     fts.push_back(new Feature(frame, Vector2d(maxgrad_x2,maxgrad_y2), 0));
-          }
-
+        //  if edgelete is not enought, we select the max grad point in each grid
+        n = n - a ;
+        if(n>0)
+        {
+            sort(maxgrad_list.begin(), maxgrad_list.end());
+            for( int i = 0; i< n; i++)
+            {
+                fts.push_back(new Feature(frame,maxgrad_list[i].xy, 0));
+            }
+        }
     }
 
-  }
-
-  int num_feature = 240;
-  int n = num_feature - fts.size();
-  if( n > 0)
-  {
-
-    sort(edge_list.begin(), edge_list.end());
-    int a = (n>edge_list.size())? edge_list.size():n;
-    for( int i = 0; i< a; i++)
-      fts.push_back(new Feature(frame, edge_list[i].xy, edge_list[i].dir, 0));   // edge
-
-    //  if edgelete is not enought, we select the max grad point in each grid
-    n = n - a ;
-    if(n>0)
-    {
-
-      sort(maxgrad_list.begin(), maxgrad_list.end());
-      for( int i = 0; i< n; i++)
-      {
-            fts.push_back(new Feature(frame,maxgrad_list[i].xy, 0));
-      }
-    }
-
-  }
-
-  resetGrid();
+    resetGrid();
 
 #endif
 }

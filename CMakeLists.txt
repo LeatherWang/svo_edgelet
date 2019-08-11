@@ -2,7 +2,7 @@
 # user build settings
 
 SET(TRACE TRUE)
-SET(HAVE_G2O false)   #TRUE
+SET(HAVE_G2O TRUE)   #TRUE
 
 SET(DEBUG_OUTPUT TRUE) # Only relevant if build without ROS
 
@@ -118,11 +118,11 @@ IF(HAVE_G2O)
     /usr/include/suitesparse # for cholmod
   )
 
- #LIST(APPEND LINK_LIBS
- # ${G2O_CORE_LIBRARY} ${G2O_STUFF_LIBRARY} ${G2O_SOLVER_CHOLMOD} ${G2O_SOLVER_CSPARSE} ${G2O_SOLVER_DENSE}
-  # ${G2O_SOLVER_PCG} ${G2O_TYPES_SBA} cholmod cxsparse
- #)
-  LIST(APPEND LINK_LIBS  g2o_core_d  g2o_solver_csparse_d  g2o_csparse_extension_d g2o_types_sba_d g2o_solver_dense_d g2o_stuff_d g2o_parser_d g2o_solver_pcg_d  cholmod cxsparse )
+ LIST(APPEND LINK_LIBS
+  ${G2O_CORE_LIBRARY} ${G2O_STUFF_LIBRARY} ${G2O_SOLVER_CHOLMOD} ${G2O_SOLVER_CSPARSE} ${G2O_SOLVER_DENSE}
+   ${G2O_SOLVER_PCG} ${G2O_TYPES_SBA} cholmod cxsparse
+ )
+#  LIST(APPEND LINK_LIBS  g2o_core_d  g2o_solver_csparse_d  g2o_csparse_extension_d g2o_types_sba_d g2o_solver_dense_d g2o_stuff_d g2o_parser_d g2o_solver_pcg_d  cholmod cxsparse )
   LIST(APPEND SOURCEFILES src/bundle_adjustment.cpp)
 ENDIF(HAVE_G2O)
 
@@ -141,3 +141,21 @@ TARGET_LINK_LIBRARIES(test_pipel_euroc svo)
 
 ADD_EXECUTABLE(test_live_vo test/test_live_vo.cpp)
 TARGET_LINK_LIBRARIES(test_live_vo svo)
+
+##### Boost #####
+# Expand the next statement if newer boost versions than 1.40.0 are released
+# set(Boost_ADDITIONAL_VERSIONS "1.40" "1.40.0" "1.49" "1.49.0")
+find_package(Boost 1.40 REQUIRED COMPONENTS filesystem program_options serialization system thread)
+# MSVC seems to be the only compiler requiring date_time
+if(MSVC)
+  find_package(Boost 1.40 REQUIRED date_time)
+endif(MSVC)
+# No auto linking, so this option is useless anyway
+mark_as_advanced(Boost_LIB_DIAGNOSTIC_DEFINITIONS)
+
+ADD_EXECUTABLE(test_myself test/test_myself.cpp)
+TARGET_LINK_LIBRARIES(test_myself
+    svo
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_THREAD_LIBRARY})
